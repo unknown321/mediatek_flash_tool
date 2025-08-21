@@ -152,6 +152,9 @@ static void parse_operation(struct arguments *arguments, int key, const char *ar
 
     if (flashing) {
         flags = O_RDONLY;
+#if _WIN32
+        flags |= O_BINARY;
+#endif
         verb = "flashing";
     } else {
         flags = O_WRONLY | O_CREAT | O_TRUNC;
