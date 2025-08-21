@@ -1,11 +1,11 @@
 #include "args.h"
 
 #include <ctype.h>
+#include <errno.h>
 #include <fcntl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <errno.h>
 
 #ifdef _WIN32
 #include <io.h>
@@ -16,8 +16,8 @@
 #define O_TRUNC _O_TRUNC
 #define lseek _lseeki64
 #else
-#include <unistd.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #endif
 
@@ -29,16 +29,17 @@ void args_print_usage(const char *program_name) {
     fprintf(stderr, "Usage: %s [OPTIONS]...\n", program_name);
     fprintf(stderr, "MediaTek device communication tool\n\n");
     fprintf(stderr, "Options:\n");
-    fprintf(stderr, "  -2, --da-stage2          Device is in DA Stage 2\n");
+    fprintf(stderr, "  -2, --da-stage2         Device is in DA Stage 2\n");
     fprintf(stderr, "  -P, --preloader         Device is in Preloader mode\n");
     fprintf(stderr, "  -d, --download-agent FILE\n");
-    fprintf(stderr, "                           Path to MediaTek Download Agent binary\n");
+    fprintf(stderr, "                          Path to MediaTek Download Agent binary\n");
     fprintf(stderr, "  -a, --address ADDRESS   EMMC address to read/write\n");
     fprintf(stderr, "  -l, --length LENGTH     Length of data to read/write\n");
     fprintf(stderr, "  -D, --dump FILE         Path to dump data to\n");
     fprintf(stderr, "  -F, --flash FILE        Path to flash data from\n");
     fprintf(stderr, "  -R, --reboot            Reboot device after completion\n");
     fprintf(stderr, "  -v, --verbose           Produce verbose output\n");
+    fprintf(stderr, "  -n, --no-interactive    Don't prompt before exiting\n");
     fprintf(stderr, "  -h, --help              Show this help message\n");
 }
 
@@ -61,6 +62,7 @@ void args_parse(int argc, char **argv, struct arguments *arguments) {
     arguments->length = 0;
     arguments->reboot = false;
     arguments->verbose = false;
+    arguments->interactive = true;
     arguments->operations_count = 0;
     arguments->download_agent_fd = -1;
 
@@ -75,60 +77,52 @@ void args_parse(int argc, char **argv, struct arguments *arguments) {
         if (strcmp(arg, "-h") == 0 || strcmp(arg, "--help") == 0) {
             args_print_usage(argv[0]);
             exit(0);
-        }
-        else if (strcmp(arg, "-2") == 0 || strcmp(arg, "--da-stage2") == 0) {
+        } else if (strcmp(arg, "-2") == 0 || strcmp(arg, "--da-stage2") == 0) {
             arguments->state = DEVICE_STATE_DA_STAGE2;
-        }
-        else if (strcmp(arg, "-P") == 0 || strcmp(arg, "--preloader") == 0) {
+        } else if (strcmp(arg, "-P") == 0 || strcmp(arg, "--preloader") == 0) {
             arguments->state = DEVICE_STATE_PRELOADER;
-        }
-        else if (strcmp(arg, "-d") == 0 || strcmp(arg, "--download-agent") == 0) {
+        } else if (strcmp(arg, "-d") == 0 || strcmp(arg, "--download-agent") == 0) {
             if (++i >= argc) {
                 fprintf(stderr, "Error: Missing argument for %s\n", arg);
                 args_print_usage(argv[0]);
                 exit(1);
             }
             arguments->download_agent = argv[i];
-        }
-        else if (strcmp(arg, "-a") == 0 || strcmp(arg, "--address") == 0) {
+        } else if (strcmp(arg, "-a") == 0 || strcmp(arg, "--address") == 0) {
             if (++i >= argc) {
                 fprintf(stderr, "Error: Missing argument for %s\n", arg);
                 args_print_usage(argv[0]);
                 exit(1);
             }
             arguments->address = parse_uint64_opt(arg, argv[i]);
-        }
-        else if (strcmp(arg, "-l") == 0 || strcmp(arg, "--length") == 0) {
+        } else if (strcmp(arg, "-l") == 0 || strcmp(arg, "--length") == 0) {
             if (++i >= argc) {
                 fprintf(stderr, "Error: Missing argument for %s\n", arg);
                 args_print_usage(argv[0]);
                 exit(1);
             }
             arguments->length = parse_uint64_opt(arg, argv[i]);
-        }
-        else if (strcmp(arg, "-D") == 0 || strcmp(arg, "--dump") == 0) {
+        } else if (strcmp(arg, "-D") == 0 || strcmp(arg, "--dump") == 0) {
             if (++i >= argc) {
                 fprintf(stderr, "Error: Missing argument for %s\n", arg);
                 args_print_usage(argv[0]);
                 exit(1);
             }
             parse_operation(arguments, 'D', argv[i], false);
-        }
-        else if (strcmp(arg, "-F") == 0 || strcmp(arg, "--flash") == 0) {
+        } else if (strcmp(arg, "-F") == 0 || strcmp(arg, "--flash") == 0) {
             if (++i >= argc) {
                 fprintf(stderr, "Error: Missing argument for %s\n", arg);
                 args_print_usage(argv[0]);
                 exit(1);
             }
             parse_operation(arguments, 'F', argv[i], true);
-        }
-        else if (strcmp(arg, "-R") == 0 || strcmp(arg, "--reboot") == 0) {
+        } else if (strcmp(arg, "-R") == 0 || strcmp(arg, "--reboot") == 0) {
             arguments->reboot = true;
-        }
-        else if (strcmp(arg, "-v") == 0 || strcmp(arg, "--verbose") == 0) {
+        } else if (strcmp(arg, "-v") == 0 || strcmp(arg, "--verbose") == 0) {
             arguments->verbose = true;
-        }
-        else {
+        } else if (strcmp(arg, "-n") == 0 || strcmp(arg, "--no-interactive") == 0) {
+            arguments->interactive = false;
+        } else {
             fprintf(stderr, "Error: Unknown option: %s\n", arg);
             args_print_usage(argv[0]);
             exit(1);
@@ -165,16 +159,14 @@ static void parse_operation(struct arguments *arguments, int key, const char *ar
     }
 
     if ((operation->fd = open(arg, flags, 0666)) < 0) {
-        fprintf(stderr, "Error: Unable to open file for %s: %s (%s)\n",
-                verb, arg, strerror(errno));
+        fprintf(stderr, "Error: Unable to open file for %s: %s (%s)\n", verb, arg, strerror(errno));
         exit(1);
     }
 
     if (flashing) {
         off_t maxlength;
         if ((maxlength = lseek(operation->fd, 0, SEEK_END)) < 0) {
-            fprintf(stderr, "Error: Unable to seek file descriptor: %s (%s)\n",
-                    arg, strerror(errno));
+            fprintf(stderr, "Error: Unable to seek file descriptor: %s (%s)\n", arg, strerror(errno));
             exit(1);
         }
         if ((uint64_t)maxlength < arguments->length) {
@@ -196,9 +188,8 @@ static void validate_arguments(struct arguments *arguments, const char *program_
 #if _WIN32
         flag |= O_BINARY;
 #endif
-        if ((arguments->download_agent_fd = open(arguments->download_agent, flag )) < 0) {
-            fprintf(stderr, "Error: Unable to open Download Agent binary: %s (%s)\n",
-                    arguments->download_agent, strerror(errno));
+        if ((arguments->download_agent_fd = open(arguments->download_agent, flag)) < 0) {
+            fprintf(stderr, "Error: Unable to open Download Agent binary: %s (%s)\n", arguments->download_agent, strerror(errno));
             exit(1);
         }
     }

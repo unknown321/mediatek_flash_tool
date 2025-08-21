@@ -57,6 +57,8 @@ int main(int argc, char **argv) {
 #endif
     verbose = arguments.verbose;
 
+    interactive = arguments.interactive;
+
     printf("Waiting for MediaTek device...\n");
 
     mtk_device device;

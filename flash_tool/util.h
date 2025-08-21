@@ -2,6 +2,9 @@
 #define FT_UTIL_H
 
 #include <stdint.h>
+#include <stdbool.h>
+
+extern bool interactive;
 
 void check_errnum(int errnum, const char *s);
 void check_libusb(int errnum, const char *s);

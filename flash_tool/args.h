@@ -27,6 +27,7 @@ struct arguments {
     uint64_t length;
     bool reboot;
     bool verbose;
+    bool interactive;
 
     struct operation operations[MAX_OPERATIONS];
     size_t operations_count;
