@@ -7,6 +7,7 @@
 
 #include "util.h"
 
+// handshake
 int mtk_preloader_start(mtk_device *device) {
     static const uint8_t start_command[] = { 0xa0, 0x0a, 0x50, 0x05 };
 

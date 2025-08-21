@@ -35,5 +35,6 @@ struct arguments {
 };
 
 void args_parse(int argc, char **argv, struct arguments *arguments);
+void args_cleanup(struct arguments *arguments);
 
 #endif /* ARGS_H */

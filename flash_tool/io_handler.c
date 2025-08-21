@@ -1,6 +1,6 @@
 #include "io_handler.h"
+#include "util.h"
 
-#include <err.h>
 #include <errno.h>
 #include <stdio.h>
 #include <string.h>

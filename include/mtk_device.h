@@ -19,6 +19,8 @@
 #define MTK_DEVICE_VID (0x0e8d)
 #define MTK_DEVICE_PID (0x2000)
 
+extern bool verbose;
+
 typedef struct {
     libusb_device_handle *dev;
 

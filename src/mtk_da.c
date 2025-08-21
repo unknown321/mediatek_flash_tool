@@ -1,13 +1,12 @@
 #include "mtk_da.h"
-
-#include <errno.h>
-#include <stddef.h>
-#include <sys/mman.h>
-#include <unistd.h>
-
-#include <libusb.h>
-
+#include "flash_tool/util.h"
 #include "util.h"
+#include <errno.h>
+#include <libusb.h>
+#include <malloc.h>
+#include <stddef.h>
+#include <stdio.h>
+#include <unistd.h>
 
 int mtk_da_info_load(int fd, const mtk_da_info **info) {
     mtk_da_info tmp_info;
@@ -29,16 +28,42 @@ int mtk_da_info_load(int fd, const mtk_da_info **info) {
         return -errno;
     }
 
-    if ((size_t) maxlength < length) {
+    if ((size_t)maxlength < length) {
         return -EFBIG;
     }
 
-    const mtk_da_info *addr_info;
-    if ((addr_info = mmap(NULL, length, PROT_READ, MAP_SHARED, fd, 0)) == MAP_FAILED) {
-        return -errno;
+    off_t result = lseek(fd, 0, SEEK_SET);
+    if (result == (off_t)-1) {
+        return errno;
     }
 
-    *info = addr_info;
+    void *buffer = malloc(length);
+    if (buffer == NULL) {
+        return -ENOMEM;
+    }
+
+    ssize_t bytes_read = 0;
+    size_t total_read = 0;
+    char *ptr = (char *)buffer;
+
+    while (total_read < length) {
+        bytes_read = read(fd, ptr + total_read, length - total_read);
+        if (bytes_read < 0) {
+            free(buffer);
+            return errno;
+        }
+
+        if (bytes_read == 0) {
+            break; // EOF
+        }
+        total_read += bytes_read;
+    }
+    if (total_read < length) {
+        free(buffer);
+        return -EIO; // Unexpected EOF
+    }
+
+    *info = buffer;
 
     return 0;
 }
@@ -87,7 +112,8 @@ int mtk_da_sync(mtk_device *device, uint32_t *nand_ret, uint32_t *emmc_ret, uint
     if ((err = mtk_device_read8(device, da_minor_ver)) < 0) {
         return err;
     }
-    if ((err = mtk_device_read8(device, NULL)) < 0) {
+    uint8_t veryminor;
+    if ((err = mtk_device_read8(device, &veryminor)) < 0) {
         return err;
     }
 
@@ -97,77 +123,101 @@ int mtk_da_sync(mtk_device *device, uint32_t *nand_ret, uint32_t *emmc_ret, uint
 static int send_device_config(mtk_device *device) {
     int err;
 
+    // bromver
     if ((err = mtk_device_write8(device, 0xff)) < 0) {
         return err;
     }
+    // blver
     if ((err = mtk_device_write8(device, 1)) < 0) {
         return err;
     }
+    // nor chip
     if ((err = mtk_device_write16(device, 0x0008)) < 0) {
         return err;
     }
+    // nor chip select
     if ((err = mtk_device_write8(device, 0x00)) < 0) {
         return err;
     }
+    // nand acccon
     if ((err = mtk_device_write32(device, 0x7007ffff)) < 0) {
         return err;
     }
+    // bmtflag
     if ((err = mtk_device_write8(device, 0x01)) < 0) {
         return err;
     }
+    // bmtpartsize
     if ((err = mtk_device_write32(device, 0)) < 0) {
         return err;
     }
+    // force charge
     if ((err = mtk_device_write8(device, 0x02)) < 0) {
         return err;
     }
+    // resetkeys
     if ((err = mtk_device_write8(device, 0x01)) < 0) {
         return err;
     }
+    // ext clock
     if ((err = mtk_device_write8(device, 0x02)) < 0) {
         return err;
     }
+    // msdc_boot_ch
     if ((err = mtk_device_write8(device, 0x00)) < 0) {
         return err;
     }
-    if ((err = mtk_device_write32(device, 1)) < 0) {
-        return err;
-    }
+
+    //    if ((err = mtk_device_write32(device, 1)) < 0) {
+    //        return err;
+    //    }
 
     return 0;
 }
 
 int mtk_da_send_da(mtk_device *device, uint32_t da_addr, uint32_t da_len, uint8_t *retval, const mtk_io_handler handler, void *user_data) {
     int err;
-
+    verboseLog("send DA, addr: 0x%x, data: ", da_addr);
+    verboseLog("send conf\n");
     if ((err = send_device_config(device)) < 0) {
         return err;
     }
 
-    static const uint8_t name[16] = { 0x46, 0x46 };
-    if ((err = mtk_device_write(device, name, sizeof(name))) < 0) {
-        return err;
-    }
-    if ((err = mtk_device_write32(device, 0xff000000)) < 0) {
-        return err;
-    }
+    usleep(350 * 1000);
 
     uint32_t data32;
     if ((err = mtk_device_read32(device, &data32)) < 0) {
         return err;
     }
-    if (data32 != 0) {
-        return LIBUSB_ERROR_OTHER;
-    }
+    verboseLog("Config: %x\n", data32);
 
-    uint8_t buffer[0x1000];
+    //    printf("send name\n");
+    //    static const uint8_t name[16] = { 0x46, 0x46 };
+    //    if ((err = mtk_device_write(device, name, sizeof(name))) < 0) {
+    //        return err;
+    //    }
+    //    if ((err = mtk_device_write32(device, 0xff000000)) < 0) {
+    //        return err;
+    //    }
+    //
+    //    uint32_t data32;
+    //    if ((err = mtk_device_read32(device, &data32)) < 0) {
+    //        return err;
+    //    }
+    //    if (data32 != 0) {
+    //        return LIBUSB_ERROR_OTHER;
+    //    }
 
+    verboseLog("Addr 0x%x\n", da_addr);
     if ((err = mtk_device_write32(device, da_addr)) < 0) {
         return err;
     }
+    verboseLog("Len 0x%x\n", da_len);
     if ((err = mtk_device_write32(device, da_len)) < 0) {
         return err;
     }
+
+    uint8_t buffer[0x1000];
     if ((err = mtk_device_write32(device, sizeof(buffer))) < 0) {
         return err;
     }
@@ -179,6 +229,7 @@ int mtk_da_send_da(mtk_device *device, uint32_t da_addr, uint32_t da_len, uint8_
         return 0;
     }
 
+    verboseLog("Send DA\n");
     size_t offset = 0;
     while (offset < da_len) {
         size_t count = MIN(sizeof(buffer), da_len - offset);
@@ -201,16 +252,17 @@ int mtk_da_send_da(mtk_device *device, uint32_t da_addr, uint32_t da_len, uint8_
         }
     }
 
-    if ((err = mtk_device_read8(device, retval)) < 0) {
-        return err;
-    }
-    if (*retval != MTK_DA_ACK) {
-        return 0;
-    }
-
+    verboseLog("Wait for write ack\n");
+    usleep(500 * 1000);
+    verboseLog("Write another ack\n");
     if ((err = mtk_device_write8(device, MTK_DA_ACK)) < 0) {
         return err;
     }
+
+    if ((err = mtk_device_read8(device, retval)) < 0) {
+        return err;
+    }
+    verboseLog("Write ack result: 0x%x\n", *retval);
 
     return 0;
 }
@@ -324,15 +376,19 @@ int mtk_da_read(mtk_device *device, uint8_t hw_storage, uint64_t addr, uint64_t 
     return 0;
 }
 
-int mtk_da_sdmmc_write_data(mtk_device *device, uint8_t storage_type, uint8_t part, uint64_t addr, uint64_t len, uint8_t *retval, const mtk_io_handler handler, void *user_data) {
+int mtk_da_sdmmc_write_data(
+    mtk_device *device, uint8_t storage_type, uint8_t part, uint64_t addr, uint64_t len, uint8_t *retval, const mtk_io_handler handler, void *user_data) {
     int err;
 
     if ((err = mtk_device_write8(device, MTK_DA_SDMMC_WRITE_DATA_CMD)) < 0) {
         return err;
     }
+    verboseLog("Storage: 0x%02x\n", storage_type);
     if ((err = mtk_device_write8(device, storage_type)) < 0) {
         return err;
     }
+
+    verboseLog("Part: 0x%02x\n", part);
     if ((err = mtk_device_write8(device, part)) < 0) {
         return err;
     }

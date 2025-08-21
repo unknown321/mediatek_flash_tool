@@ -15,6 +15,15 @@ enum {
     MTK_PRELOADER_CMD_GET_TARGET_CONFIG = 0xd8,
 };
 
+#pragma pack(push,1)
+struct passinfo {
+    char ack;
+    uint32_t download_status;
+    uint32_t boot_style;
+    char soc_ok;
+};
+#pragma pack(pop)
+
 int mtk_preloader_start(mtk_device *device);
 
 int mtk_preloader_get_tgt_config(mtk_device *device, uint32_t *tgt_config, uint16_t *status);

@@ -1,13 +1,26 @@
 #include "util.h"
 
-#include <err.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <string.h>
 
 #include <libusb.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <errno.h>
+#include <stdarg.h>
 
 #include "mtk_da.h"
+
+void errx(int status, const char *format, ...) {
+    va_list args;
+    va_start(args, format);
+    vfprintf(stderr, format, args);
+    va_end(args);
+    printf("\nPress enter to exit\n");
+    getchar();
+    exit(status);
+}
 
 void check_errnum(int errnum, const char *s) {
     if (errnum != 0) {
@@ -41,6 +54,15 @@ void check_mtk_da_cont_char(uint8_t retval) {
 
 void check_mtk_da_soc_ok(uint8_t retval) {
     if (retval != MTK_DA_SOC_OK) {
-        errx(2, "DA did not return OK: 0x%02" PRIx8, retval);
+        errx(2, "SOC DA did not return OK: 0x%02" PRIx8, retval);
+    }
+}
+
+void verboseLog(const char* format, ...) {
+    if (verbose) {
+        va_list args;
+        va_start(args, format);
+        vfprintf(stderr, format, args);
+        va_end(args);
     }
 }
