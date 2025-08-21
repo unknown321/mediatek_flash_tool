@@ -27,7 +27,7 @@ static void validate_arguments(struct arguments *arguments, const char *program_
 
 void args_print_usage(const char *program_name) {
     fprintf(stderr, "Usage: %s [OPTIONS]...\n", program_name);
-    fprintf(stderr, "MediaTek device communication tool\n\n");
+    fprintf(stderr, "MediaTek device communication tool for MT8590-based Walkmans\n\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "  -2, --da-stage2         Device is in DA Stage 2\n");
     fprintf(stderr, "  -P, --preloader         Device is in Preloader mode\n");
