@@ -160,6 +160,9 @@ static void parse_operation(struct arguments *arguments, int key, const char *ar
         verb = "flashing";
     } else {
         flags = O_WRONLY | O_CREAT | O_TRUNC;
+#if _WIN32
+        flags |= O_BINARY;
+#endif
         verb = "dumping";
     }
 
