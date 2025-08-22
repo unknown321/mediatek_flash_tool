@@ -60,6 +60,10 @@ int main(int argc, char **argv) {
     interactive = arguments.interactive;
 
     printf("Waiting for MediaTek device...\n");
+    printf("1. Detach cable and turn off the device\n");
+    printf("2. Hold Play and Volume Down buttons\n");
+    printf("3. Insert cable\n");
+    printf("4. Release the buttons after successful detection\n");
 
     mtk_device device;
     err = mtk_device_detect(&device, NULL);
