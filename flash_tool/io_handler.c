@@ -42,11 +42,13 @@ int io_handler(bool flashing, size_t offset, size_t total_length, uint8_t *buffe
 }
 
 static void print_progress(bool flashing, size_t offset, size_t length) {
+    double progress = (double) offset / length;
+    int percent = progress * 100;
+
     if (!isatty(STDERR_FILENO)) {
+        printf("Progress: %d%%\n", percent);
         return;
     }
-
-    double progress = (double) offset / length;
 
     char progress_bar[PROGRESS_BAR_WIDTH + 1];
 
@@ -56,7 +58,6 @@ static void print_progress(bool flashing, size_t offset, size_t length) {
     progress_bar[PROGRESS_BAR_WIDTH] = '\0';
 
     const char *verb = flashing ? "Flashing" : "Dumping";
-    int percent = progress * 100;
 
     char offset_str[SI_UNITS_BUFSIZ];
     format_si_units(offset, offset_str, sizeof(offset_str));
