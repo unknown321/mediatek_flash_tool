@@ -109,6 +109,7 @@ void args_parse(int argc, char **argv, struct arguments *arguments) {
                 exit(1);
             }
             parse_operation(arguments, 'D', argv[i], false);
+            printf("Mode: dumping\n");
         } else if (strcmp(arg, "-F") == 0 || strcmp(arg, "--flash") == 0) {
             if (++i >= argc) {
                 fprintf(stderr, "Error: Missing argument for %s\n", arg);
@@ -116,6 +117,7 @@ void args_parse(int argc, char **argv, struct arguments *arguments) {
                 exit(1);
             }
             parse_operation(arguments, 'F', argv[i], true);
+            printf("Mode: flashing\n");
         } else if (strcmp(arg, "-R") == 0 || strcmp(arg, "--reboot") == 0) {
             arguments->reboot = true;
         } else if (strcmp(arg, "-v") == 0 || strcmp(arg, "--verbose") == 0) {
